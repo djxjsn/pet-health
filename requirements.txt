@@ -1,0 +1,20 @@
+# LangChain 核心框架
+langchain>=0.1.0
+langchain-openai>=0.0.5
+langchain-community>=0.0.10
+
+# LLM 相关
+openai>=1.0.0
+
+# 数据处理
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+
+# 开发工具
+black>=24.0.0
+isort>=5.13.0
+flake8>=7.0.0
+pytest>=7.4.0
+
+# 其他依赖
+requests>=2.31.0
