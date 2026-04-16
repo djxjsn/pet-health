@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "skill-hub": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "./skills"],
+      "env": {},
+      "description": "Skill / Function Hub MCP - 统一管理工具集、权限、参数校验、调用日志",
+      "enabled": true
+    }
+  }
+}

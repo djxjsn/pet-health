@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "memory-vector": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "env": {
+        "MEMORY_FILE_PATH": "./.trae/memory.json"
+      },
+      "description": "Memory / Vector DB MCP - 长期记忆、向量检索、上下文总结、历史关联",
+      "enabled": true
+    }
+  }
+}

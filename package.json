@@ -1,0 +1,24 @@
+{
+  "name": "trae-project",
+  "version": "1.0.0",
+  "description": "基于 LangChain 框架开发的 AI 宠物健康助手智能体项目，提供宠物健康咨询、疾病诊断、营养建议等功能。",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/djxjsn/ai-.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/djxjsn/ai-/issues"
+  },
+  "homepage": "https://github.com/djxjsn/ai-#readme"
+}

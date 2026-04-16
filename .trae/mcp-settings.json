@@ -1,0 +1,33 @@
+{
+  "mcpServers": {
+    "plan-workflow": {
+      "command": "uvx",
+      "args": ["--from", "devgenius-mcp-client", "devgenius-mcp"],
+      "env": {
+        "DEVGENIUS_MCP_TOKEN": "mcp_your_token_here",
+        "DEVGENIUS_API_URL": "http://localhost:8000/api/v1/mcp",
+        "DEVGENIUS_IDE_TYPE": "trae",
+        "DEVGENIUS_PROJECT_PATH": "e:\\学习\\trae project\\pei health agent",
+        "DEVGENIUS_AUTO_WRITE_RULES": "true"
+      },
+      "description": "Plan / Workflow MCP - 多步任务拆解、依赖调度、重试、回滚、状态持久化 (21 个工具)",
+      "enabled": true
+    },
+    "memory-vector": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "env": {
+        "MEMORY_FILE_PATH": "./.trae/memory.json"
+      },
+      "description": "Memory / Vector DB MCP - 长期记忆、向量检索、上下文总结、历史关联",
+      "enabled": true
+    },
+    "skill-hub": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "./skills"],
+      "env": {},
+      "description": "Skill / Function Hub MCP - 统一管理工具集、权限、参数校验、调用日志",
+      "enabled": true
+    }
+  }
+}
