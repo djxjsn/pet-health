@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "git-commit-mcp": {
+      "command": "npx",
+      "args": ["git-commit-mcp"],
+      "env": {
+        "GIT_AUTHOR_NAME": "djxjsn",
+        "GIT_AUTHOR_EMAIL": "djxjsn@users.noreply.github.com",
+        "GIT_COMMITTER_NAME": "djxjsn",
+        "GIT_COMMITTER_EMAIL": "djxjsn@users.noreply.github.com"
+      },
+      "description": "Git Commit Generator MCP - 智能分析代码变更并自动生成规范的提交信息",
+      "enabled": true
+    }
+  }
+}

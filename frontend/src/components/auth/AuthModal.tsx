@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -8,7 +9,29 @@ interface AuthModalProps {
   initialMode?: 'login' | 'register';
 }
 
+function formatErrorMessage(errorData: any): string {
+  const detail = errorData.detail || errorData.message;
+  if (!detail) return '操作失败，请稍后再试。';
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((err: any) => {
+        if (typeof err === 'string') return err;
+        if (err?.msg) return err.msg;
+        if (err?.message) return err.message;
+        return '验证错误';
+      })
+      .filter(Boolean)
+      .join('; ');
+  }
+  if (typeof detail === 'object') {
+    return detail.msg || detail.message || JSON.stringify(detail);
+  }
+  return String(detail);
+}
+
 export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) {
+  const { login } = useAuthStore();
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -17,6 +40,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -47,8 +71,8 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
     setLoading(true);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      const response = await fetch(`${apiUrl}/api/v1/auth/login`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+      const response = await fetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -65,10 +89,14 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
         localStorage.setItem('refresh_token', data.refresh_token);
         localStorage.setItem('user_id', data.user_id);
         document.cookie = `auth-token=${data.access_token}; path=/; max-age=${30 * 60}; SameSite=Lax`;
+        login(
+          { user_id: data.user_id, phone: phone } as any,
+          data.access_token
+        );
         window.location.href = '/chat';
       } else {
         const errorData = await response.json().catch(() => ({}));
-        setError(errorData.detail || errorData.message || '登录失败，请检查您的手机号和密码。');
+        setError(formatErrorMessage(errorData));
       }
     } catch (_err) {
       setError('发生未知错误，请稍后再试。');
@@ -95,8 +123,8 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
     setLoading(true);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      const response = await fetch(`${apiUrl}/api/v1/auth/register`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+      const response = await fetch(`${apiUrl}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -117,7 +145,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
         }, 1500);
       } else {
         const errorData = await response.json().catch(() => ({}));
-        setError(errorData.detail || errorData.message || '注册失败，请稍后再试。');
+        setError(formatErrorMessage(errorData));
       }
     } catch (_err) {
       setError('发生未知错误，请稍后再试。');

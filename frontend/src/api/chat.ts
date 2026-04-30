@@ -20,7 +20,7 @@ export interface CreateConversationResponse {
 
 export const chatApi = {
   async sendMessage(data: ChatRequest): Promise<ChatResponse> {
-    return apiClient.post<ChatResponse>('/chat', data);
+    return apiClient.post<ChatResponse>('/chat', data, { timeout: 180000, retries: 0 });
   },
 
   async listConversations(skip = 0, limit = 20): Promise<Conversation[]> {

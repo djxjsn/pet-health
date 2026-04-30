@@ -1,7 +1,19 @@
 'use client';
 
-import { useState, useCallback, ReactNode } from 'react';
+import { useState, useCallback, ReactNode, useRef, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+
+interface ConversationItem {
+  id: string;
+  title: string;
+  preview?: string;
+  updatedAt: string;
+}
+
+const mockConversations: ConversationItem[] = [
+  { id: 'conv-001', title: '猫咪软便', preview: '我的猫今天软便了...', updatedAt: '1小时前' },
+  { id: 'conv-002', title: '狗粮推荐', preview: '金毛犬适合的狗粮...', updatedAt: '昨天' },
+];
 
 interface DesktopLayoutProps {
   children: ReactNode;
@@ -20,8 +32,26 @@ export default function DesktopLayout({
 }: DesktopLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [rightPanelVisible, setRightPanelVisible] = useState(true);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setHistoryExpanded(false);
+      }
+    };
+
+    if (historyExpanded) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [historyExpanded]);
 
   // Sidebar navigation items
   const navItems = [
@@ -47,79 +77,155 @@ export default function DesktopLayout({
         `}
       >
         {/* Logo Area */}
-        <div className="flex h-16 flex-shrink-0 items-center gap-2 border-b px-4">
+        <div className="relative flex h-16 flex-shrink-0 items-center gap-2 border-b px-4">
           <span className="text-xl">🐾</span>
           {!sidebarCollapsed && (
-            <span className="font-bold text-gray-900">宠物助手</span>
+            <span className="font-bold text-gray-900">宠物健康</span>
           )}
-          
-          {/* Collapse Toggle */}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="ml-auto rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-            title={sidebarCollapsed ? '展开侧栏' : '收起侧栏'}
-          >
-            <svg
-              className={`h-5 w-5 transition-transform duration-200 ${
-                sidebarCollapsed ? 'rotate-180' : ''
-              }`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+
+          {/* Collapse Button - inside sidebar header when expanded */}
+          {!sidebarCollapsed && (
+            <button
+              onClick={() => setSidebarCollapsed(true)}
+              className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-400 shadow-sm transition-all duration-200 ease-in-out hover:border-gray-300 hover:bg-gray-50 hover:text-gray-600"
+              title="收起侧栏"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-            </svg>
-          </button>
+              <svg
+                className="h-3.5 w-3.5 rotate-180"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                strokeWidth={2.5}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4 px-3">
           <ul className="space-y-1">
-            {navItems.map((item) => {
+            {navItems.filter(item => item.id !== 'history').map((item) => {
               const isActive = pathname === item.href || 
                 (item.href !== '/' && pathname.startsWith(item.href));
               
               return (
                 <li key={item.id}>
-                  <button
-                    onClick={() => handleNavClick(item.href)}
-                    className={`
-                      group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200
-                      ${isActive
-                        ? 'bg-primary-50 text-primary-700 shadow-sm'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                      }
-                    `}
-                  >
-                    {/* Active indicator */}
-                    {isActive && (
-                      <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-primary-500" />
-                    )}
-                    
-                    <span className={`text-lg transition-transform duration-200 ${isActive ? 'scale-110' : ''} group-hover:scale-110`}>
-                      {item.icon}
-                    </span>
-                    
-                    {!sidebarCollapsed && (
-                      <>
+                  {item.id === 'chat' && !sidebarCollapsed ? (
+                    <div ref={dropdownRef} className="relative">
+                      <button
+                        onClick={() => {
+                          handleNavClick(item.href);
+                          setHistoryExpanded(!historyExpanded);
+                        }}
+                        className={`
+                          group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200
+                          ${isActive
+                            ? 'bg-primary-50 text-primary-700 shadow-sm'
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                          }
+                        `}
+                      >
+                        {/* Active indicator */}
+                        {isActive && (
+                          <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-primary-500" />
+                        )}
+                        
+                        <span className={`text-lg transition-transform duration-200 ${isActive ? 'scale-110' : ''} group-hover:scale-110`}>
+                          {item.icon}
+                        </span>
+                        
                         <span className="truncate">{item.label}</span>
                         
-                        {/* Keyboard shortcut hint */}
-                        <span className="ml-auto text-xs opacity-40 group-hover:opacity-60">
-                          {item.id === 'chat' && '⌘K'}
-                          {item.id === 'pets' && '⌘P'}
-                          {item.id === 'shop' && '⌘S'}
-                          {item.id === 'history' && '⌘H'}
-                        </span>
-                      </>
-                    )}
+                        {/* Expand indicator */}
+                        <svg
+                          className={`ml-auto h-3.5 w-3.5 transition-transform duration-200 ${historyExpanded ? 'rotate-180' : ''}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
 
-                    {sidebarCollapsed && (
-                      <div className="absolute left-full ml-2 hidden rounded-md bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:block group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-                        {item.label}
+                      {/* History Dropdown */}
+                      <div
+                        className={`
+                          overflow-hidden transition-all duration-300 ease-in-out
+                          ${historyExpanded ? 'max-h-96 opacity-100 mt-2' : 'max-h-0 opacity-0'}
+                        `}
+                      >
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-2">
+                          <div className="px-2 pb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
+                            对话历史
+                          </div>
+                          <div className="space-y-1">
+                            {mockConversations.map((conv) => (
+                              <button
+                                key={conv.id}
+                                onClick={() => {
+                                  router.push('/chat');
+                                  setHistoryExpanded(false);
+                                }}
+                                className="group w-full rounded-md p-2 text-left text-sm text-gray-600 hover:bg-white hover:shadow-sm transition-all"
+                              >
+                                <div className="truncate font-medium text-gray-900">{conv.title}</div>
+                                {conv.preview && (
+                                  <div className="mt-0.5 truncate text-xs text-gray-400">{conv.preview}</div>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            onClick={() => router.push('/history')}
+                            className="mt-2 w-full rounded-md py-1.5 text-xs font-medium text-primary-600 hover:bg-primary-50 transition-colors"
+                          >
+                            查看全部历史 →
+                          </button>
+                        </div>
                       </div>
-                    )}
-                  </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleNavClick(item.href)}
+                      className={`
+                        group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200
+                        ${isActive
+                          ? 'bg-primary-50 text-primary-700 shadow-sm'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        }
+                      `}
+                    >
+                      {/* Active indicator */}
+                      {isActive && (
+                        <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-primary-500" />
+                      )}
+                      
+                      <span className={`text-lg transition-transform duration-200 ${isActive ? 'scale-110' : ''} group-hover:scale-110`}>
+                        {item.icon}
+                      </span>
+                      
+                      {!sidebarCollapsed && (
+                        <>
+                          <span className="truncate">{item.label}</span>
+                          
+                          {/* Keyboard shortcut hint */}
+                          <span className="ml-auto text-xs opacity-40 group-hover:opacity-60">
+                            {item.id === 'chat' && '⌘K'}
+                            {item.id === 'pets' && '⌘P'}
+                            {item.id === 'shop' && '⌘S'}
+                          </span>
+                        </>
+                      )}
+
+                      {sidebarCollapsed && (
+                        <div className="absolute left-full ml-2 hidden rounded-md bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:block group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                          {item.label}
+                        </div>
+                      )}
+                    </button>
+                  )}
                 </li>
               );
             })}
@@ -190,6 +296,24 @@ export default function DesktopLayout({
           <header className="flex h-14 flex-shrink-0 items-center justify-between border-b bg-white px-4 md:px-6">
             {/* Breadcrumb / Page Title */}
             <div className="flex items-center gap-3">
+              {/* Sidebar toggle button - shows in main content when sidebar is collapsed */}
+              {sidebarCollapsed && (
+                <button
+                  onClick={() => setSidebarCollapsed(false)}
+                  className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-400 shadow-sm transition-all duration-200 ease-in-out hover:border-gray-300 hover:bg-gray-50 hover:text-gray-600"
+                  title="展开侧栏"
+                >
+                  <svg
+                    className="h-3.5 w-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2.5}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+              )}
               <h1 className="text-lg font-semibold text-gray-900">
                 {navItems.find(item => item.href === pathname)?.label || '页面'}
               </h1>

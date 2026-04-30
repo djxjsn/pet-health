@@ -3,6 +3,8 @@
 
 import type { NextPage } from 'next';
 import { useState, useRef, useEffect } from 'react';
+import { chatApi } from '@/api/chat';
+import AuthModal from '@/components/auth/AuthModal';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -14,6 +16,8 @@ const ChatPage: NextPage = () => {
   const [messages, setMessages] = useState<Message[]>([
     { role: 'assistant', content: '我是您的 AI 宠物健康助手，请问有什么可以帮您？' },
   ]);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -25,40 +29,39 @@ const ChatPage: NextPage = () => {
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim()) return;
+    if (!inputValue.trim() || isLoading) return;
 
     const userMessage: Message = { role: 'user', content: inputValue };
     setMessages((prev) => [...prev, userMessage]);
     setInputValue('');
+    setIsLoading(true);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({ message: inputValue }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const assistantMessage: Message = {
-          role: 'assistant',
-          content: data.response || data.answer || '抱歉，我无法回答这个问题。',
-        };
-        setMessages((prev) => [...prev, assistantMessage]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          { role: 'assistant', content: '抱歉，发生了错误，请稍后重试。' },
-        ]);
+      const data = await chatApi.sendMessage({ message: inputValue });
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: data.response || '抱歉，我无法回答这个问题。',
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+    } catch (err: unknown) {
+      const error = err as { status?: number; message?: string };
+      if (error.status === 401) {
+        setShowAuthModal(true);
+        return;
       }
-    } catch (_err) {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: '网络连接失败，请检查后重试。' },
-      ]);
+      let errorMsg = '抱歉，发生了错误，请稍后重试。';
+      if (error.status === 504) {
+        errorMsg = '请求处理超时，AI 正在思考中，请稍后重试或简化您的问题。';
+      } else if (error.message?.includes('超时')) {
+        errorMsg = '网络请求超时，请检查网络连接后重试。';
+      } else if (error.status === 500) {
+        errorMsg = '服务器内部错误，请稍后重试。';
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
+      setMessages((prev) => [...prev, { role: 'assistant', content: errorMsg }]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -78,20 +81,11 @@ const ChatPage: NextPage = () => {
           <h1 className="text-lg font-semibold md:text-xl text-neutral-900">AI 宠物健康助手</h1>
         </div>
         <div className="flex items-center space-x-4">
-          <button className="hidden rounded-md px-3 py-1.5 text-sm font-medium text-neutral-600 hover:bg-neutral-100 md:block">历史</button>
           <div className="h-8 w-8 rounded-full bg-primary-500"></div>
         </div>
       </header>
 
       <main className="flex flex-1 overflow-hidden">
-        <aside className="hidden w-72 flex-shrink-0 overflow-y-auto border-r bg-neutral-50 p-4 md:block">
-          <h2 className="mb-4 text-lg font-semibold text-neutral-800">对话历史</h2>
-          <div className="space-y-2">
-            <div className="cursor-pointer rounded-md bg-primary-100 p-3 text-primary-800">猫咪软便</div>
-            <div className="cursor-pointer rounded-md p-3 text-neutral-600 hover:bg-neutral-200">狗粮推荐</div>
-          </div>
-        </aside>
-
         <div className="flex flex-1 flex-col">
           <div className="flex-1 overflow-y-auto p-4 md:p-6">
             <div className="space-y-4">
@@ -123,6 +117,20 @@ const ChatPage: NextPage = () => {
                   )}
                 </div>
               ))}
+              {isLoading && (
+                <div className="flex items-start space-x-3">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary-500 text-white">
+                    🤖
+                  </div>
+                  <div className="max-w-lg rounded-lg rounded-tl-none bg-white text-neutral-800 border border-neutral-100 p-3 shadow-sm">
+                    <div className="flex items-center space-x-2">
+                      <div className="h-2 w-2 rounded-full bg-primary-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="h-2 w-2 rounded-full bg-primary-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="h-2 w-2 rounded-full bg-primary-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
           </div>
@@ -160,6 +168,7 @@ const ChatPage: NextPage = () => {
           </div>
         </aside>
       </main>
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </div>
   );
 };

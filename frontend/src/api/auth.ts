@@ -20,7 +20,7 @@ export const authApi = {
     formData.append('password', data.password);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/auth/login`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/auth/login`, {
         method: 'POST',
         body: formData,
       });

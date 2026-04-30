@@ -22,6 +22,7 @@ uvicorn>=0.24.0
 sqlalchemy>=2.0.0
 alembic>=1.13.0
 pymysql>=1.1.0
+pymongo>=4.6.0
 
 # 安全与认证
 bcrypt>=4.0.0
@@ -45,3 +46,12 @@ pytest>=7.4.0
 
 # 其他依赖
 requests>=2.31.0
+
+# DEV-008 工具集成依赖
+minio>=7.2.0
+baidu-aip>=4.16.0
+tavily-python>=0.3.0
+celery[redis]>=5.4.0
+redis>=5.0.0
+Pillow>=10.0.0
+aiofiles>=23.0.0

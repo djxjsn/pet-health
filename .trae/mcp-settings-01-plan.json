@@ -4,7 +4,7 @@
       "command": "uvx",
       "args": ["--from", "devgenius-mcp-client", "devgenius-mcp"],
       "env": {
-        "DEVGENIUS_MCP_TOKEN": "mcp_your_token_here",
+        "DEVGENIUS_MCP_TOKEN": "mcp_local_token_12345",
         "DEVGENIUS_API_URL": "http://localhost:8000/api/v1/mcp",
         "DEVGENIUS_IDE_TYPE": "trae",
         "DEVGENIUS_PROJECT_PATH": "e:\\学习\\trae project\\pei health agent",
