@@ -1,0 +1,344 @@
+{
+  "project": {
+    "name": "AI 宠物健康助手",
+    "description": "基于 LangChain 的 AI 宠物健康助手 API 接口测试",
+    "version": "1.0.0"
+  },
+  "environments": [
+    {
+      "name": "开发环境",
+      "domain": "http://localhost:8000",
+      "variables": {
+        "base_url": "http://localhost:8000/api/v1",
+        "access_token": "",
+        "test_user_id": "",
+        "test_conversation_id": ""
+      }
+    },
+    {
+      "name": "测试环境",
+      "domain": "https://test-api.pet-health.com",
+      "variables": {
+        "base_url": "https://test-api.pet-health.com/api/v1"
+      }
+    }
+  ],
+  "test_suites": [
+    {
+      "name": "01-用户认证模块测试",
+      "description": "测试用户注册、登录、Token 刷新等功能",
+      "cases": [
+        {
+          "name": "用户注册 - 正常流程",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/register",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "phone": "13800000010",
+              "email": "test_apifox@example.com",
+              "password": "test1234"
+            }
+          },
+          "validations": [
+            {
+              "check": "status_code",
+              "expected": 201
+            },
+            {
+              "check": "body.user_id",
+              "expected": "exists"
+            },
+            {
+              "check": "body.phone",
+              "expected": "13800000010"
+            }
+          ]
+        },
+        {
+          "name": "用户登录 - 成功",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "body": {
+              "username": "13800000010",
+              "password": "test1234"
+            }
+          },
+          "validations": [
+            {
+              "check": "status_code",
+              "expected": 200
+            },
+            {
+              "check": "body.access_token",
+              "expected": "exists"
+            },
+            {
+              "check": "body.token_type",
+              "expected": "bearer"
+            }
+          ],
+          "post_actions": [
+            {
+              "type": "set_env",
+              "key": "access_token",
+              "value": "{{body.access_token}}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02-对话管理模块测试",
+      "description": "测试对话创建、查询、删除等功能",
+      "cases": [
+        {
+          "name": "创建对话 - 正常",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/conversations",
+            "headers": {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer {{access_token}}"
+            },
+            "body": {
+              "title": "APIFox 测试对话",
+              "pet_id": ""
+            }
+          },
+          "validations": [
+            {
+              "check": "status_code",
+              "expected": 201
+            },
+            {
+              "check": "body.conversation_id",
+              "expected": "exists"
+            },
+            {
+              "check": "body.message_count",
+              "expected": 0
+            }
+          ],
+          "post_actions": [
+            {
+              "type": "set_env",
+              "key": "test_conversation_id",
+              "value": "{{body.conversation_id}}"
+            }
+          ]
+        },
+        {
+          "name": "查询对话列表 - 分页",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/conversations?skip=0&limit=10",
+            "headers": {
+              "Authorization": "Bearer {{access_token}}"
+            }
+          },
+          "validations": [
+            {
+              "check": "status_code",
+              "expected": 200
+            },
+            {
+              "check": "body",
+              "expected": "is_array"
+            },
+            {
+              "check": "body.length",
+              "expected": "<=10"
+            }
+          ]
+        },
+        {
+          "name": "获取对话详情",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/conversations/{{test_conversation_id}}",
+            "headers": {
+              "Authorization": "Bearer {{access_token}}"
+            }
+          },
+          "validations": [
+            {
+              "check": "status_code",
+              "expected": 200
+            },
+            {
+              "check": "body.conversation_id",
+              "expected": "{{test_conversation_id}}"
+            },
+            {
+              "check": "body.messages",
+              "expected": "is_array"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03-AI 对话功能测试",
+      "description": "测试 AI 对话核心功能",
+      "cases": [
+        {
+          "name": "AI 对话 - 单轮",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/chat",
+            "headers": {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer {{access_token}}"
+            },
+            "body": {
+              "message": "你好，我想了解狗狗疫苗接种知识"
+            }
+          },
+          "validations": [
+            {
+              "check": "status_code",
+              "expected": 200
+            },
+            {
+              "check": "body.response",
+              "expected": "exists"
+            },
+            {
+              "check": "body.response.length",
+              "expected": ">10"
+            },
+            {
+              "check": "response_time",
+              "expected": "<5000"
+            }
+          ]
+        },
+        {
+          "name": "AI 对话 - 多轮上下文保持",
+          "steps": [
+            {
+              "name": "第一轮对话",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/chat",
+                "headers": {
+                  "Authorization": "Bearer {{access_token}}"
+                },
+                "body": {
+                  "message": "我的狗叫旺财，今年 2 岁"
+                }
+              },
+              "post_actions": [
+                {
+                  "type": "set_env",
+                  "key": "conversation_id",
+                  "value": "{{body.conversation_id}}"
+                }
+              ]
+            },
+            {
+              "name": "第二轮对话",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/chat",
+                "headers": {
+                  "Authorization": "Bearer {{access_token}}"
+                },
+                "body": {
+                  "message": "它需要打什么疫苗？",
+                  "conversation_id": "{{conversation_id}}"
+                }
+              },
+              "validations": [
+                {
+                  "check": "status_code",
+                  "expected": 200
+                },
+                {
+                  "check": "body.conversation_id",
+                  "expected": "{{conversation_id}}"
+                },
+                {
+                  "check": "body.response",
+                  "expected": "contains:疫苗"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04-错误处理测试",
+      "description": "测试各种错误场景",
+      "cases": [
+        {
+          "name": "未认证访问",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/chat",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "message": "测试未认证访问"
+            }
+          },
+          "validations": [
+            {
+              "check": "status_code",
+              "expected": 401
+            }
+          ]
+        },
+        {
+          "name": "无效 Token",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/chat",
+            "headers": {
+              "Authorization": "Bearer invalid_token_xyz"
+            },
+            "body": {
+              "message": "测试无效 Token"
+            }
+          },
+          "validations": [
+            {
+              "check": "status_code",
+              "expected": 401
+            }
+          ]
+        },
+        {
+          "name": "访问不存在的对话",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/conversations/non-existent-id",
+            "headers": {
+              "Authorization": "Bearer {{access_token}}"
+            }
+          },
+          "validations": [
+            {
+              "check": "status_code",
+              "expected": 404
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "global_settings": {
+    "timeout": 30000,
+    "retry_count": 2,
+    "verify_ssl": false
+  }
+}

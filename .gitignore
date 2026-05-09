@@ -74,3 +74,31 @@ yarn-error.log
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+# Vector DB data
+animal/data/chroma/
+animal/data/*.bin
+
+# Test outputs and reports
+animal/reports/
+animal/coverage.json
+animal/database_diagnostic_report.json
+animal/dev008_test_output.txt
+animal/test_*.txt
+animal/test_*.py
+animal/test_*.json
+animal/minimal_test.py
+animal/quick_check.py
+animal/check_mysql_data.py
+animal/run_*.py
+animal/verify_*.py
+animal/reset_chroma.py
+
+# Scripts (development utilities)
+animal/scripts/
+
+# Trae IDE local config
+animal/.trae/
+
+# Alembic cache
+animal/alembic/__pycache__/

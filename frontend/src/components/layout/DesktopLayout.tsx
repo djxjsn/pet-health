@@ -58,6 +58,7 @@ export default function DesktopLayout({
     { icon: '💬', label: '对话', href: '/chat', id: 'chat' },
     { icon: '📜', label: '历史记录', href: '/history', id: 'history' },
     { icon: '🐾', label: '宠物档案', href: '/pets', id: 'pets' },
+    { icon: '📖', label: '知识百科', href: '/knowledge', id: 'knowledge' },
     { icon: '🛒', label: '智能商城', href: '/shop', id: 'shop' },
     { icon: '⚙️', label: '健康咨询', href: '/health/consult', id: 'health' },
     { icon: '🎯', label: '行为分析', href: '/behavior', id: 'behavior' },
