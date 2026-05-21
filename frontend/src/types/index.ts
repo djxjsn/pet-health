@@ -14,14 +14,66 @@ export interface Pet {
   name: string;
   species: string;
   breed?: string;
-  gender: 'male' | 'female';
+  gender?: string;
   weight?: number;
   birth_date?: string;
   is_vaccinated: boolean;
   is_neutered: boolean;
-  avatar_url?: string;
+  photo_url?: string;
+  // P1 扩展字段
+  microchip_id?: string;
+  blood_type?: string;
+  current_status?: string;
+  diet_type?: string;
+  spay_neuter_date?: string;
+  emergency_contact?: string;
+  source?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface PetAllergy {
+  allergy_id: string;
+  pet_id: string;
+  allergen_name: string;
+  allergen_type: string;
+  severity: string;
+  confirmed_by: string;
+  reaction_desc?: string;
+  first_observed?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PetVaccination {
+  vaccination_id: string;
+  pet_id: string;
+  vaccine_name: string;
+  vaccine_type: string;
+  dose_number?: string;
+  administered_date: string;
+  next_due_date?: string;
+  vet_name?: string;
+  hospital?: string;
+  batch_number?: string;
+  manufacturer?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PetOwnerShare {
+  id: string;
+  pet_id: string;
+  user_id: string;
+  role: string;
+  permission: string;
+  granted_by?: string;
+  granted_at: string;
+  expires_at?: string;
+  is_active: boolean;
+  created_at: string;
 }
 
 export interface Message {

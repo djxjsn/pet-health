@@ -8,6 +8,8 @@ from src.tools.pet_health_tools import (
     HealthKnowledgeTool,
     SymptomAnalysisTool,
     NutritionAdviceTool,
+    AllergyCheckTool,
+    VaccinationReminderTool,
 )
 from src.tools.health_tools import (
     HealthConsultTool,
@@ -46,6 +48,8 @@ class ToolRegistry:
         self.register_tool("search_health_knowledge", HealthKnowledgeTool)
         self.register_tool("analyze_symptoms", SymptomAnalysisTool)
         self.register_tool("get_nutrition_advice", NutritionAdviceTool)
+        self.register_tool("check_allergy_conflict", AllergyCheckTool)
+        self.register_tool("get_vaccination_reminders", VaccinationReminderTool)
         self.register_tool("health_consult", HealthConsultTool)
         self.register_tool("assess_urgency", UrgencyAssessmentTool)
         self.register_tool("get_health_records", HealthRecordTool)

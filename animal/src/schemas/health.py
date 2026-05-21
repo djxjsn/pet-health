@@ -4,12 +4,42 @@ from pydantic import BaseModel, Field
 from src.schemas.llm_output import SymptomAnalysisResult
 
 
+# ========== 结构化症状模型 ==========
+
+class StructuredSymptom(BaseModel):
+    """结构化症状描述"""
+    name: str = Field(..., description="症状名称: 呕吐/腹泻/咳嗽/跛行等")
+    duration: Optional[str] = Field(None, description="持续时间: 2天/1周等")
+    severity: Optional[int] = Field(None, ge=1, le=5, description="严重程度 1-5")
+    onset: Optional[str] = Field(None, description="起病方式: sudden(急性)/gradual(渐进)")
+    frequency: Optional[str] = Field(None, description="频率: 4次/天/间歇性等")
+    character: Optional[str] = Field(None, description="特征: 水样便/干咳/湿咳等")
+    body_location: Optional[str] = Field(None, description="部位: 左前肢/腹部/耳部等")
+    notes: Optional[str] = Field(None, description="补充说明")
+
+
+class StructuredDiagnosis(BaseModel):
+    """结构化诊断结果"""
+    primary: str = Field(..., description="主要诊断: 急性肠胃炎")
+    icd_code: Optional[str] = Field(None, description="国际疾病编码: A09")
+    differential: Optional[List[str]] = Field(None, description="鉴别诊断列表")
+    confidence: Optional[float] = Field(None, ge=0, le=1, description="诊断置信度 0-1")
+    severity: Optional[str] = Field(None, description="严重程度: mild/moderate/severe/critical")
+    is_chronic: Optional[bool] = Field(None, description="是否慢性病")
+
+
 # ========== Health Record Schemas ==========
 
 class HealthRecordCreate(BaseModel):
     record_type: str = Field(..., description="记录类型: checkup/vaccine/illness/allergy/surgery")
-    symptoms: Optional[List[str]] = Field(None, description="症状列表")
-    diagnosis: Optional[str] = Field(None, description="诊断结果")
+    # 兼容旧版：纯文本症状列表
+    symptoms: Optional[List[str]] = Field(None, description="症状列表(简版)")
+    # 结构化症状（新版）
+    structured_symptoms: Optional[List[StructuredSymptom]] = Field(None, description="结构化症状列表")
+    # 兼容旧版：纯文本诊断
+    diagnosis: Optional[str] = Field(None, description="诊断结果(简版)")
+    # 结构化诊断（新版）
+    structured_diagnosis: Optional[StructuredDiagnosis] = Field(None, description="结构化诊断结果")
     prescription: Optional[str] = Field(None, description="处方/用药")
     vet_name: Optional[str] = Field(None, max_length=50, description="兽医姓名")
     hospital: Optional[str] = Field(None, max_length=100, description="医院/诊所名称")
@@ -23,7 +53,9 @@ class HealthRecordResponse(BaseModel):
     pet_id: str
     record_type: str
     symptoms: Optional[List[str]] = None
+    structured_symptoms: Optional[List[StructuredSymptom]] = None
     diagnosis: Optional[str] = None
+    structured_diagnosis: Optional[StructuredDiagnosis] = None
     prescription: Optional[str] = None
     vet_name: Optional[str] = None
     hospital: Optional[str] = None
@@ -63,7 +95,7 @@ class ConsultationResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ========== Health API Request/Response (OPT-H-03 Structured) ==========
+# ========== Health API Request/Response ==========
 
 class HealthConsultRequest(BaseModel):
     """健康咨询请求"""
@@ -74,7 +106,7 @@ class HealthConsultRequest(BaseModel):
 
 
 class HealthConsultResponse(BaseModel):
-    """健康咨询响应 (OPT-H-03: 使用结构化诊断结果)"""
+    """健康咨询响应"""
     consultation_id: str
     pet_id: str
     diagnosis_result: Optional[SymptomAnalysisResult] = None
@@ -95,7 +127,7 @@ class SymptomAnalysisRequest(BaseModel):
 
 
 class SymptomAnalysisResponse(BaseModel):
-    """症状分析响应 (OPT-H-03: 使用结构化输出)"""
+    """症状分析响应"""
     diagnosis_result: SymptomAnalysisResult = Field(
         ...,
         description="诊断分析结果（结构化）"

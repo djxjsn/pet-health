@@ -32,12 +32,22 @@ class HealthRecord(Base):
     symptoms = Column(
         JSON,
         nullable=True,
-        comment="症状列表"
+        comment="症状列表(简版，字符串数组)"
+    )
+    structured_symptoms = Column(
+        JSON,
+        nullable=True,
+        comment="结构化症状列表(新版，含name/duration/severity/onset等)"
     )
     diagnosis = Column(
         Text,
         nullable=True,
-        comment="诊断结果"
+        comment="诊断结果(简版，纯文本)"
+    )
+    structured_diagnosis = Column(
+        JSON,
+        nullable=True,
+        comment="结构化诊断结果(新版，含primary/icd_code/differential/confidence等)"
     )
     prescription = Column(
         Text,
@@ -68,6 +78,19 @@ class HealthRecord(Base):
         Text,
         nullable=True,
         comment="备注"
+    )
+    # 软删除
+    is_deleted = Column(
+        Integer,
+        default=0,
+        nullable=False,
+        index=True,
+        comment="是否已删除(0=否,1=是)"
+    )
+    deleted_at = Column(
+        DateTime,
+        nullable=True,
+        comment="删除时间"
     )
     created_at = Column(
         DateTime,
@@ -155,6 +178,19 @@ class Consultation(Base):
         ForeignKey("conversations.conversation_id", ondelete="SET NULL"),
         nullable=True,
         comment="关联对话ID"
+    )
+    # 软删除
+    is_deleted = Column(
+        Integer,
+        default=0,
+        nullable=False,
+        index=True,
+        comment="是否已删除(0=否,1=是)"
+    )
+    deleted_at = Column(
+        DateTime,
+        nullable=True,
+        comment="删除时间"
     )
     created_at = Column(
         DateTime,
