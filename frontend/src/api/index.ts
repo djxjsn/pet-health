@@ -4,3 +4,11 @@ export { petApi, type PetListResponse } from './pets';
 export { chatApi, type ConversationDetail, type CreateConversationResponse } from './chat';
 export { healthApi, type HealthConsultResult, type SymptomAnalysisResult, type HealthRecord } from './health';
 export { behaviorApi, type BehaviorAnalyzeResult, type TrainingRecommendationResult } from './behavior';
+export { deviceApi } from './devices';
+export type {
+  DeviceItem,
+  DeviceCreateRequest,
+  DeviceUpdateRequest,
+  HealthMetricResponse,
+  DailyReportResponse,
+} from './devices';

@@ -78,6 +78,16 @@ dmypy.json
 # Vector DB data
 animal/data/chroma/
 animal/data/*.bin
+animal/data/qdrant_local/
+
+# Build/test output files
+animal/build_out.txt
+animal/build_output.txt
+animal/output_test.txt
+animal/p2_log.txt
+animal/pytest_log.txt
+animal/testlog.txt
+animal/dbg.txt
 
 # Test outputs and reports
 animal/reports/

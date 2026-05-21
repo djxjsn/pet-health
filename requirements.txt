@@ -12,6 +12,7 @@ tiktoken>=0.5.0
 
 # 向量数据库与嵌入
 chromadb>=0.4.0
+qdrant-client>=1.12.0
 sentence-transformers>=2.2.0
 
 # Web 框架
@@ -55,3 +56,6 @@ celery[redis]>=5.4.0
 redis>=5.0.0
 Pillow>=10.0.0
 aiofiles>=23.0.0
+
+# InfluxDB 时序数据库
+influxdb-client>=1.44.0

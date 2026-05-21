@@ -17,6 +17,11 @@ from src.core.database import engine, MySQLBase
 from src.core.mongodb import MongoDBClient
 from src.api.v1.router import api_router
 
+# 确保所有模型被导入以创建表
+from src.models import User, UserProfile, Pet, PetAllergy, PetVaccination, PetOwner, Device, HealthRecord
+from src.models.conversation import Conversation, Message
+from src.models.behavior_analysis import BehaviorAnalysis
+
 settings = get_settings()
 
 # 创建 FastAPI 应用实例
