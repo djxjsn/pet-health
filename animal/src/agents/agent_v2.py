@@ -44,7 +44,7 @@ class IntentCategory(str, Enum):
     PET_INFO = "pet_info"
     HEALTH_CONSULT = "health_consult"
     SYMPTOM_CHECK = "symptom_check"
-    NUTRITION_ADVICE = "nutrition_adivce"
+    NUTRITION_ADVICE = "nutrition_advice"
     BEHAVIOR_ANALYSIS = "behavior_analysis"
     EMERGENCY_ASSESS = "emergency_assess"
     DAILY_CARE = "daily_care"
@@ -389,8 +389,13 @@ class AgentV2:
             )
             return reflection
         except Exception as e:
-            logger.warning(f"反思失败，默认完成: {e}")
-            return ReflectionResult(sufficient=True, reasoning=f"反思模块异常: {e}")
+            logger.warning(f"反思失败，默认不充分并保守收敛: {e}")
+            return ReflectionResult(
+                sufficient=False,
+                missing_info=["反思模块异常，进入保守收敛模式"],
+                additional_tools=[],
+                reasoning=f"反思模块异常: {e}"
+            )
 
     def integrate_v2(self, context: AgentContext) -> str:
         """第五步：结果整合
@@ -459,7 +464,7 @@ class AgentV2:
             ctx.relevant_context = context.get("relevant_context", [])
             ctx.conversation_id = context.get("conversation_id")
             ctx.pet_id = context.get("pet_id")
-            ctx.user_id = self.user_id
+            ctx.user_id = context.get("user_id") or self.user_id
 
         try:
             # Step 1: 意图分类
@@ -493,6 +498,9 @@ class AgentV2:
                         reflection.additional_tools
                     )
                     ctx.results.extend(additional_results)
+                else:
+                    # 无追加工具时主动退出，避免无效反思循环
+                    break
 
             # Step 6: 整合结果
             response = self.integrate_v2(ctx)

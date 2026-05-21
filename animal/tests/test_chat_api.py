@@ -4,6 +4,7 @@ DEV-003 Agent编排 集成测试
 测试对话API、WebSocket、Agent编排的核心流程
 """
 import pytest
+from datetime import datetime
 from unittest.mock import Mock, patch
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -119,6 +120,7 @@ class TestChatAPI:
             "conversation_id": "test-conv-id",
             "response": "这是AI的回复",
             "relevant_context": [],
+            "orchestration": {"engine": "v2", "fallback": False, "emergency_hit": None},
         }
 
         response = client.post(
@@ -130,6 +132,9 @@ class TestChatAPI:
         data = response.json()
         assert "conversation_id" in data
         assert "response" in data
+        assert "orchestration" in data
+        assert data["orchestration"]["engine"] == "v2"
+        assert data["orchestration"]["fallback"] is False
 
     @patch("src.agents.pet_health_agent.PetHealthAgent.chat")
     def test_chat_with_pet_context(self, mock_chat, client: TestClient, auth_headers: dict, created_pet: dict):
@@ -138,6 +143,7 @@ class TestChatAPI:
             "conversation_id": "test-conv-id",
             "response": "关于旺财的健康建议...",
             "relevant_context": [],
+            "orchestration": {"engine": "v2", "fallback": False, "emergency_hit": None},
         }
 
         response = client.post(
@@ -159,6 +165,7 @@ class TestChatAPI:
             "conversation_id": "existing-conv-id",
             "response": "继续之前的对话...",
             "relevant_context": [],
+            "orchestration": {"engine": "v2", "fallback": False, "emergency_hit": None},
         }
 
         response = client.post(
@@ -170,6 +177,104 @@ class TestChatAPI:
             },
         )
         assert response.status_code == 200
+
+    @patch("src.agents.pet_health_agent.PetHealthAgent.chat")
+    def test_chat_endpoint_emergency_orchestration(self, mock_chat, client: TestClient, auth_headers: dict):
+        """测试紧急场景编排字段透传"""
+        mock_chat.return_value = {
+            "conversation_id": "test-conv-id",
+            "response": "请立即送医",
+            "relevant_context": [],
+            "orchestration": {"engine": "emergency_gate", "fallback": False, "emergency_hit": "抽搐"},
+        }
+
+        response = client.post(
+            "/api/v1/chat",
+            headers=auth_headers,
+            json={"message": "突然抽搐怎么办"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["orchestration"]["engine"] == "emergency_gate"
+        assert data["orchestration"]["fallback"] is False
+        assert data["orchestration"]["emergency_hit"] == "抽搐"
+
+    def test_chat_orchestration_stats_endpoint(self, client: TestClient, auth_headers: dict):
+        """测试编排统计接口返回结构与计数"""
+        from src.core.mongodb import get_mongo_collection
+
+        conv_resp = client.post(
+            "/api/v1/conversations",
+            headers=auth_headers,
+            json={"title": "orchestration stats test"},
+        )
+        assert conv_resp.status_code == 201
+        conv_data = conv_resp.json()
+        conversation_id = conv_data["conversation_id"]
+
+        messages = get_mongo_collection("messages")
+        messages.insert_one({
+            "message_id": "msg-stat-1",
+            "conversation_id": conversation_id,
+            "role": "assistant",
+            "content": "v2 response",
+            "metadata": {"orchestration": {"engine": "v2", "fallback": False, "emergency_hit": None}},
+            "created_at": datetime.utcnow(),
+        })
+        messages.insert_one({
+            "message_id": "msg-stat-2",
+            "conversation_id": conversation_id,
+            "role": "assistant",
+            "content": "fallback response",
+            "metadata": {"orchestration": {"engine": "v1", "fallback": True, "emergency_hit": None}},
+            "created_at": datetime.utcnow(),
+        })
+        messages.insert_one({
+            "message_id": "msg-stat-3",
+            "conversation_id": conversation_id,
+            "role": "assistant",
+            "content": "emergency response",
+            "metadata": {"orchestration": {"engine": "emergency_gate", "fallback": False, "emergency_hit": "抽搐"}},
+            "created_at": datetime.utcnow(),
+        })
+
+        stats_resp = client.get("/api/v1/chat/orchestration/stats?limit=100", headers=auth_headers)
+        assert stats_resp.status_code == 200
+        data = stats_resp.json()
+
+        assert "counters" in data
+        assert "rates" in data
+        assert data["counters"]["with_orchestration"] >= 3
+        assert data["counters"]["by_engine"]["v2"] >= 1
+        assert data["counters"]["by_engine"]["v1"] >= 1
+        assert data["counters"]["by_engine"]["emergency_gate"] >= 1
+
+    def test_message_repository_create_increments_message_count(self, client: TestClient, auth_headers: dict):
+        """测试MessageRepository.create会正确累加会话message_count"""
+        from src.repositories.mongo_repositories import ConversationRepository, MessageRepository
+
+        conv_resp = client.post(
+            "/api/v1/conversations",
+            headers=auth_headers,
+            json={"title": "message_count increment test"},
+        )
+        assert conv_resp.status_code == 201
+        conversation_id = conv_resp.json()["conversation_id"]
+
+        before = ConversationRepository.get_by_id(conversation_id)
+        before_count = before.get("message_count", 0)
+
+        MessageRepository.create({
+            "message_id": "msg-inc-1",
+            "conversation_id": conversation_id,
+            "role": "assistant",
+            "content": "first assistant message",
+            "metadata": {"from_test": True},
+        })
+
+        after = ConversationRepository.get_by_id(conversation_id)
+        after_count = after.get("message_count", 0)
+        assert after_count == before_count + 1
 
 
 class TestAgentOrchestration:
@@ -278,3 +383,39 @@ class TestAgentOrchestration:
 
         response = agent.run("测试错误", {})
         assert "错误" in response or "error" in response.lower() or agent.state.status == AgentStatus.ERROR
+
+    def test_chat_emergency_gate(self, db_session: Session, test_user, mock_llm):
+        """测试紧急关键词命中时走紧急前置策略"""
+        from src.agents.pet_health_agent import PetHealthAgent
+
+        agent = PetHealthAgent(
+            db=db_session,
+            llm=mock_llm,
+            user_id=test_user.user_id
+        )
+
+        result = agent.chat("我的猫突然抽搐并呼吸困难，怎么办")
+
+        assert "conversation_id" in result
+        assert result["orchestration"]["engine"] == "emergency_gate"
+        assert result["orchestration"]["fallback"] is False
+        assert "紧急" in result["response"] or "急诊" in result["response"]
+
+    def test_chat_fallback_to_v1_when_v2_fails(self, db_session: Session, test_user, mock_llm):
+        """测试V2异常时自动回退V1"""
+        from src.agents.pet_health_agent import PetHealthAgent
+
+        agent = PetHealthAgent(
+            db=db_session,
+            llm=mock_llm,
+            user_id=test_user.user_id
+        )
+
+        with patch.object(agent.agent_v2, "run_v2", side_effect=Exception("v2 failed")):
+            with patch.object(agent, "run", return_value="v1 fallback response") as mock_run:
+                result = agent.chat("普通咨询问题")
+
+        assert mock_run.called
+        assert result["response"] == "v1 fallback response"
+        assert result["orchestration"]["engine"] == "v1"
+        assert result["orchestration"]["fallback"] is True

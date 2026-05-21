@@ -47,6 +47,7 @@ async def chat_with_ai(
     - 可选指定宠物ID获取个性化建议
     - 返回相关上下文和响应内容
     """
+    start_time = datetime.utcnow()
     try:
         agent = PetHealthAgent(
             db=db,
@@ -65,6 +66,17 @@ async def chat_with_ai(
             timeout=150.0
         )
         
+        elapsed_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+        orchestration = result.get("orchestration") if isinstance(result, dict) else None
+        logger.info(
+            "chat_orchestration user=%s conv=%s engine=%s fallback=%s emergency_hit=%s latency_ms=%s",
+            current_user.user_id,
+            result.get("conversation_id") if isinstance(result, dict) else None,
+            orchestration.get("engine") if isinstance(orchestration, dict) else None,
+            orchestration.get("fallback") if isinstance(orchestration, dict) else None,
+            orchestration.get("emergency_hit") if isinstance(orchestration, dict) else None,
+            elapsed_ms,
+        )
         return result
         
     except asyncio.TimeoutError:
@@ -113,6 +125,82 @@ async def list_conversations(
         )
         for c in conversations
     ]
+
+
+@router.get("/chat/orchestration/stats")
+async def get_orchestration_stats(
+    *,
+    current_user: User = Depends(get_current_user),
+    limit: int = 200,
+) -> Any:
+    """获取当前用户最近消息中的编排统计信息"""
+    conversations = ConversationRepository.list_by_user(
+        user_id=current_user.user_id,
+        skip=0,
+        limit=100
+    )
+
+    conversation_ids = [c.get("conversation_id") for c in conversations if c.get("conversation_id")]
+    counters = {
+        "total_messages": 0,
+        "assistant_messages": 0,
+        "with_orchestration": 0,
+        "by_engine": {"v2": 0, "v1": 0, "emergency_gate": 0, "unknown": 0},
+        "fallback_count": 0,
+        "emergency_hit_count": 0,
+    }
+
+    inspected = 0
+    for conversation_id in conversation_ids:
+        if inspected >= limit:
+            break
+        messages = MessageRepository.list_by_conversation(
+            conversation_id=conversation_id,
+            skip=0,
+            limit=50
+        )
+        for msg in messages:
+            if inspected >= limit:
+                break
+            inspected += 1
+            counters["total_messages"] += 1
+
+            if msg.get("role") != "assistant":
+                continue
+
+            counters["assistant_messages"] += 1
+            metadata = msg.get("metadata") or {}
+            orchestration = metadata.get("orchestration") if isinstance(metadata, dict) else None
+            if not isinstance(orchestration, dict):
+                continue
+
+            counters["with_orchestration"] += 1
+            engine = orchestration.get("engine") or "unknown"
+            if engine not in counters["by_engine"]:
+                engine = "unknown"
+            counters["by_engine"][engine] += 1
+
+            if orchestration.get("fallback") is True:
+                counters["fallback_count"] += 1
+            if orchestration.get("emergency_hit"):
+                counters["emergency_hit_count"] += 1
+
+    denom = max(counters["with_orchestration"], 1)
+    rates = {
+        "fallback_rate": round(counters["fallback_count"] / denom, 4),
+        "emergency_hit_rate": round(counters["emergency_hit_count"] / denom, 4),
+        "v2_rate": round(counters["by_engine"]["v2"] / denom, 4),
+        "v1_rate": round(counters["by_engine"]["v1"] / denom, 4),
+        "emergency_gate_rate": round(counters["by_engine"]["emergency_gate"] / denom, 4),
+    }
+
+    return {
+        "user_id": current_user.user_id,
+        "sample_limit": limit,
+        "inspected_messages": inspected,
+        "counters": counters,
+        "rates": rates,
+    }
 
 
 @router.get("/conversations/{conversation_id}", response_model=ConversationWithMessagesResponse)

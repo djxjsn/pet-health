@@ -48,10 +48,26 @@ class ConversationRepository:
     def update(conversation_id: str, update_data: Dict[str, Any]) -> bool:
         """更新对话"""
         collection = get_mongo_collection("conversations")
-        update_data["updated_at"] = datetime.utcnow()
+        now = datetime.utcnow()
+
+        # 兼容两种更新风格：
+        # 1) 普通字段字典：{"title": "..."} -> {$set: {...}}
+        # 2) 操作符字典：{"$inc": {...}} / {"$set": {...}} 等
+        has_operator = any(str(k).startswith("$") for k in update_data.keys())
+
+        if has_operator:
+            mongo_update = dict(update_data)
+            set_doc = dict(mongo_update.get("$set", {}))
+            set_doc["updated_at"] = now
+            mongo_update["$set"] = set_doc
+        else:
+            payload = dict(update_data)
+            payload["updated_at"] = now
+            mongo_update = {"$set": payload}
+
         result = collection.update_one(
             {"conversation_id": conversation_id},
-            {"$set": update_data}
+            mongo_update
         )
         return result.modified_count > 0
     

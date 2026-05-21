@@ -10,6 +10,7 @@ from src.agents.base_agent import BaseAgent
 from src.tools.tool_registry import get_tool_registry
 from src.memory.conversation_memory import ConversationMemoryManager
 from src.core.rag_prompts import build_integrate_prompt, build_direct_response_prompt
+from src.agents.agent_v2 import AgentV2
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ class PetHealthAgent(BaseAgent):
 
         self.user_id = user_id
         self.conversation_id = conversation_id
+        self.agent_v2 = AgentV2(llm=self.llm, user_id=user_id, db=db)
     
     def plan(self, user_input: str, context: Dict[str, Any]) -> List[Dict[str, Any]]:
         """规划任务
@@ -210,7 +212,7 @@ class PetHealthAgent(BaseAgent):
             context["pet_id"] = pet_id
             try:
                 from src.models.pet import Pet
-                pet = db.query(Pet).filter(Pet.pet_id == pet_id).first()
+                pet = self.db.query(Pet).filter(Pet.pet_id == pet_id).first()
                 if pet:
                     context["pet_info"] = {
                         "name": pet.name,
@@ -223,22 +225,52 @@ class PetHealthAgent(BaseAgent):
         
         relevant_context = self.memory_manager.retrieve_relevant_context(
             query=user_input,
-            n_results=3
+            n_results=3,
+            conversation_id=self.conversation_id
         )
         context["relevant_context"] = relevant_context
-        
-        response = self.run(user_input, context)
+        context["conversation_id"] = self.conversation_id
+        context["user_id"] = self.user_id
+
+        # P0: 紧急场景前置策略，避免高风险问题经过常规编排链路
+        emergency_hit = self._detect_emergency_signal(user_input)
+        if emergency_hit:
+            response = self._build_emergency_response(emergency_hit)
+            orchestration = {
+                "engine": "emergency_gate",
+                "fallback": False,
+                "emergency_hit": emergency_hit,
+            }
+        else:
+            # 默认走 V2 编排，若异常自动降级到 V1，保证线上稳定性
+            try:
+                response = self.agent_v2.run_v2(user_input, context)
+                orchestration = {
+                    "engine": "v2",
+                    "fallback": False,
+                    "emergency_hit": None,
+                }
+            except Exception as e:
+                logger.error(f"Agent V2 执行失败，回退到 V1: {e}", exc_info=True)
+                response = self.run(user_input, context)
+                orchestration = {
+                    "engine": "v1",
+                    "fallback": True,
+                    "emergency_hit": None,
+                }
         
         self.memory_manager.add_message(
             conversation_id=self.conversation_id,
             role="assistant",
-            content=response
+            content=response,
+            metadata={"orchestration": orchestration}
         )
         
         return {
             "conversation_id": self.conversation_id,
             "response": response,
-            "relevant_context": relevant_context
+            "relevant_context": relevant_context,
+            "orchestration": orchestration,
         }
     
     def _get_tools_description(self) -> str:
@@ -247,3 +279,26 @@ class PetHealthAgent(BaseAgent):
         for tool in self.tools:
             descriptions.append(f"- {tool.name}: {tool.description}")
         return "\n".join(descriptions)
+
+    @staticmethod
+    def _detect_emergency_signal(user_input: str) -> Optional[str]:
+        """检测紧急关键词，命中时走紧急响应通道"""
+        emergency_keywords = [
+            "中毒", "窒息", "昏迷", "抽搐", "呼吸困难", "大量出血", "无法排尿", "休克"
+        ]
+        text = user_input or ""
+        for keyword in emergency_keywords:
+            if keyword in text:
+                return keyword
+        return None
+
+    @staticmethod
+    def _build_emergency_response(trigger_keyword: str) -> str:
+        return (
+            f"🚨 检测到高风险症状（{trigger_keyword}），请立即前往最近的宠物医院急诊，不建议线上等待观察。\n\n"
+            "建议你现在立刻执行：\n"
+            "1. 保持宠物呼吸道通畅，避免二次伤害\n"
+            "2. 准备最近1小时内症状变化与可疑摄入物信息\n"
+            "3. 到院时明确告知“疑似急症”，优先分诊\n\n"
+            "⚠️ 重要提醒：线上建议不能替代兽医面诊和急诊处置。"
+        )

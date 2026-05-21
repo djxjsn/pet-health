@@ -165,11 +165,17 @@ async def chat_websocket(
                     })
                     
                     try:
-                        # 调用Agent处理
-                        result = agent.chat(
-                            user_input=user_message,
-                            conversation_id=conversation_id,
-                            pet_id=pet_id
+                        # 调用Agent处理（放入线程池，避免阻塞事件循环）
+                        loop = asyncio.get_event_loop()
+                        result = await asyncio.wait_for(
+                            loop.run_in_executor(
+                                None,
+                                agent.chat,
+                                user_message,
+                                conversation_id,
+                                pet_id
+                            ),
+                            timeout=150.0
                         )
                         
                         # 发送响应结果
@@ -178,10 +184,16 @@ async def chat_websocket(
                             "data": {
                                 "conversation_id": result["conversation_id"],
                                 "response": result["response"],
-                                "relevant_context": result.get("relevant_context", [])
+                                "relevant_context": result.get("relevant_context", []),
+                                "orchestration": result.get("orchestration")
                             }
                         })
                         
+                    except asyncio.TimeoutError:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "处理超时，请稍后重试或简化问题"
+                        })
                     except Exception as e:
                         await websocket.send_json({
                             "type": "error",

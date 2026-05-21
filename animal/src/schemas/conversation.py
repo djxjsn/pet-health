@@ -71,3 +71,7 @@ class ChatResponse(BaseModel):
         None,
         description="从向量数据库检索的相关上下文"
     )
+    orchestration: Optional[Dict[str, Any]] = Field(
+        None,
+        description="编排执行信息（引擎版本、降级、紧急命中等）"
+    )
