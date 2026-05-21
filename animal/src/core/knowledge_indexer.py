@@ -1,7 +1,8 @@
 """
 知识索引构建器
 
-负责将知识文档分块并向量化存储到ChromaDB中。
+负责将知识文档分块并向量化存储到向量数据库中。
+支持ChromaDB和Qdrant后端，通过config.VECTOR_DB_BACKEND切换。
 """
 from typing import List, Dict, Any, Optional
 from datetime import datetime

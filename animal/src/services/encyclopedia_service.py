@@ -1155,8 +1155,13 @@ class EncyclopediaService:
 
     @staticmethod
     def get_breeds(species: str) -> List[dict]:
-        data = CAT_BREEDS if species == "cat" else DOG_BREEDS
-        return [BreedSummary(**{
+        if species == "cat":
+            data = CAT_BREEDS
+        elif species == "dog":
+            data = DOG_BREEDS
+        else:
+            return []
+        result = [BreedSummary(**{
             "id": b["id"], "name": b["name"],
             "english_name": b.get("english_name", ""),
             "species": b["species"],
@@ -1164,6 +1169,8 @@ class EncyclopediaService:
             "image_emoji": b.get("image_emoji", "🐾"),
             "popularity": b.get("popularity", 5)
         }).model_dump() for b in data]
+        result.sort(key=lambda x: x["popularity"], reverse=True)
+        return result
 
     @staticmethod
     def get_breed_detail(breed_id: str) -> Optional[dict]:
@@ -1175,12 +1182,14 @@ class EncyclopediaService:
 
     @staticmethod
     def get_health_conditions(species: str) -> List[dict]:
-        if species in ("cat", "both"):
+        if species == "cat":
             conditions = CAT_HEALTH_CONDITIONS
-        elif species in ("dog", "both"):
+        elif species == "dog":
             conditions = DOG_HEALTH_CONDITIONS
-        else:
+        elif species == "both":
             conditions = CAT_HEALTH_CONDITIONS + DOG_HEALTH_CONDITIONS
+        else:
+            return []
 
         grouped = {}
         for c in conditions:

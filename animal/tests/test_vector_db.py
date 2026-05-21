@@ -1,11 +1,11 @@
 """
-向量数据库测试
+向量数据库测试（ChromaDB兼容）
 """
 import pytest
 import os
 import tempfile
 from unittest.mock import Mock, patch
-from src.core.vector_db import VectorDatabase
+from src.core.vector_db_chroma import VectorDatabase
 
 
 class TestVectorDatabase:
@@ -13,7 +13,6 @@ class TestVectorDatabase:
     
     @pytest.fixture(autouse=True)
     def setup_vector_db(self, monkeypatch):
-        """设置测试用的向量数据库"""
         temp_dir = tempfile.mkdtemp()
         monkeypatch.setenv("CHROMA_PERSIST_DIR", temp_dir)
         monkeypatch.setenv("CHROMA_COLLECTION_NAME", "test_collection")
@@ -26,23 +25,21 @@ class TestVectorDatabase:
         VectorDatabase._instance = None
     
     def test_vector_db_singleton(self):
-        """测试单例模式"""
         mock_ef = Mock()
-        with patch('src.core.vector_db._check_local_model_cache', return_value=True), \
-             patch('src.core.vector_db.embedding_functions.SentenceTransformerEmbeddingFunction', return_value=mock_ef), \
+        with patch('src.core.vector_db_chroma._check_local_model_cache', return_value=True), \
+             patch('src.core.vector_db_chroma.embedding_functions.SentenceTransformerEmbeddingFunction', return_value=mock_ef), \
              patch.object(VectorDatabase, '_get_or_create_collection', return_value=Mock()):
             db1 = VectorDatabase()
             db2 = VectorDatabase()
             assert db1 is db2
     
     def test_add_documents(self):
-        """测试添加文档"""
         mock_ef = Mock()
         mock_collection = Mock()
         mock_collection.count.return_value = 3
         
-        with patch('src.core.vector_db._check_local_model_cache', return_value=True), \
-             patch('src.core.vector_db.embedding_functions.SentenceTransformerEmbeddingFunction', return_value=mock_ef), \
+        with patch('src.core.vector_db_chroma._check_local_model_cache', return_value=True), \
+             patch('src.core.vector_db_chroma.embedding_functions.SentenceTransformerEmbeddingFunction', return_value=mock_ef), \
              patch.object(VectorDatabase, '_get_or_create_collection', return_value=mock_collection):
             db = VectorDatabase()
             
@@ -69,7 +66,6 @@ class TestVectorDatabase:
             assert count >= 3
     
     def test_query_documents(self):
-        """测试查询文档"""
         mock_ef = Mock()
         mock_collection = Mock()
         mock_collection.add.return_value = None
@@ -79,8 +75,8 @@ class TestVectorDatabase:
             'distances': [[0.1]]
         }
         
-        with patch('src.core.vector_db._check_local_model_cache', return_value=True), \
-             patch('src.core.vector_db.embedding_functions.SentenceTransformerEmbeddingFunction', return_value=mock_ef), \
+        with patch('src.core.vector_db_chroma._check_local_model_cache', return_value=True), \
+             patch('src.core.vector_db_chroma.embedding_functions.SentenceTransformerEmbeddingFunction', return_value=mock_ef), \
              patch.object(VectorDatabase, '_get_or_create_collection', return_value=mock_collection):
             db = VectorDatabase()
             
@@ -100,14 +96,13 @@ class TestVectorDatabase:
             assert len(results['documents'][0]) > 0
     
     def test_delete_documents(self):
-        """测试删除文档"""
         mock_ef = Mock()
         mock_collection = Mock()
         mock_collection.count.return_value = 0
         mock_collection.delete.return_value = None
         
-        with patch('src.core.vector_db._check_local_model_cache', return_value=True), \
-             patch('src.core.vector_db.embedding_functions.SentenceTransformerEmbeddingFunction', return_value=mock_ef), \
+        with patch('src.core.vector_db_chroma._check_local_model_cache', return_value=True), \
+             patch('src.core.vector_db_chroma.embedding_functions.SentenceTransformerEmbeddingFunction', return_value=mock_ef), \
              patch.object(VectorDatabase, '_get_or_create_collection', return_value=mock_collection):
             db = VectorDatabase()
             
@@ -121,7 +116,6 @@ class TestVectorDatabase:
             mock_collection.delete.assert_called_once_with(ids=["test_delete_doc"])
     
     def test_update_documents(self):
-        """测试更新文档"""
         mock_ef = Mock()
         mock_collection = Mock()
         mock_collection.update.return_value = None
@@ -131,8 +125,8 @@ class TestVectorDatabase:
             'distances': [[0.05]]
         }
         
-        with patch('src.core.vector_db._check_local_model_cache', return_value=True), \
-             patch('src.core.vector_db.embedding_functions.SentenceTransformerEmbeddingFunction', return_value=mock_ef), \
+        with patch('src.core.vector_db_chroma._check_local_model_cache', return_value=True), \
+             patch('src.core.vector_db_chroma.embedding_functions.SentenceTransformerEmbeddingFunction', return_value=mock_ef), \
              patch.object(VectorDatabase, '_get_or_create_collection', return_value=mock_collection):
             db = VectorDatabase()
             
@@ -156,9 +150,8 @@ class TestVectorDatabase:
             assert results is not None
 
     def test_unavailable_embedding_raises_error(self, monkeypatch):
-        """测试嵌入不可用时操作抛出RuntimeError"""
-        with patch('src.core.vector_db._check_internet_connection', return_value=False), \
-             patch('src.core.vector_db._check_local_model_cache', return_value=False):
+        with patch('src.core.vector_db_chroma._check_internet_connection', return_value=False), \
+             patch('src.core.vector_db_chroma._check_local_model_cache', return_value=False):
             db = VectorDatabase()
             
             with pytest.raises(RuntimeError, match="嵌入模型不可用"):

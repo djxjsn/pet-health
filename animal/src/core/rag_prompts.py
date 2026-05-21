@@ -120,6 +120,38 @@ ${tool_results}
 - 术语翻译：把专业术语翻译成养宠用户听得懂的话（如"Omega-3脂肪酸"→"鱼油这类美毛营养品"）""")
 
 
+# Phase 2: Self-RAG + CRAG 增强提示词
+
+SELF_RAG_RETRIEVAL_EVAL_PROMPT = """评估检索结果是否能充分回答问题。
+
+用户问题：{query}
+检索结果数：{result_count}
+检索得分范围：{score_range}
+
+请快速评估（仅输出JSON）：
+{"sufficiency": 0.0-1.0, "is_relevant": true/false, "need_supplement": true/false}"""
+
+SELF_RAG_GENERATION_CORRECTION_PROMPT = """根据参考资料纠正以下回答中的事实错误。
+
+参考资料：{context}
+
+待纠正回答：{answer}
+
+仅输出纠正后的回答（不含解释），如果无需纠正则原样输出。"""
+
+RAG_REFUSE_PROMPT = """你无法基于现有知识库回答此问题。
+
+用户问题：{query}
+
+请生成一条友好但明确的回复，表明该问题需要专业兽医面诊，并提供适当的建议方向。
+
+回复要求：
+1. 开头emoji + 友好语气
+2. 说明为什么不能远程判断
+3. 给出就近就医建议
+4. 结尾加安全声明"""
+
+
 def format_context(retrieved_results: List[Dict[str, Any]]) -> str:
     """将检索结果格式化为结构化的上下文文本
     

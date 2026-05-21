@@ -45,15 +45,15 @@ class WriteTask:
 
 
 class AsyncVectorWriter:
-    """异步向量数据库写入器"""
+    """异步向量数据库写入器
     
-    def __init__(self, max_queue_size: int = 1000, worker_count: int = 1):
-        """初始化异步写入器
-        
-        Args:
-            max_queue_size: 任务队列最大容量
-            worker_count: 工作线程数量
-        """
+    支持多worker并行写入、批量写入优化、失败重试。
+    Qdrant后端下worker_count默认4，利用其高并发写入能力。
+    """
+
+    BATCH_SIZE = 100
+
+    def __init__(self, max_queue_size: int = 2000, worker_count: int = 4):
         self._queue: Queue = Queue(maxsize=max_queue_size)
         self._worker_count = worker_count
         self._workers: List[threading.Thread] = []
@@ -247,9 +247,8 @@ _async_writer: Optional[AsyncVectorWriter] = None
 
 
 def get_async_writer() -> AsyncVectorWriter:
-    """获取异步写入器实例（单例）"""
     global _async_writer
     if _async_writer is None:
-        _async_writer = AsyncVectorWriter(max_queue_size=1000, worker_count=1)
+        _async_writer = AsyncVectorWriter(max_queue_size=2000, worker_count=4)
         _async_writer.start()
     return _async_writer
