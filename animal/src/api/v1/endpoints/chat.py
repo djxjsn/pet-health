@@ -69,12 +69,13 @@ async def chat_with_ai(
         elapsed_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
         orchestration = result.get("orchestration") if isinstance(result, dict) else None
         logger.info(
-            "chat_orchestration user=%s conv=%s engine=%s fallback=%s emergency_hit=%s latency_ms=%s",
+            "chat_orchestration user=%s conv=%s engine=%s fallback=%s emergency_hit=%s quality_action=%s latency_ms=%s",
             current_user.user_id,
             result.get("conversation_id") if isinstance(result, dict) else None,
             orchestration.get("engine") if isinstance(orchestration, dict) else None,
             orchestration.get("fallback") if isinstance(orchestration, dict) else None,
             orchestration.get("emergency_hit") if isinstance(orchestration, dict) else None,
+            orchestration.get("quality_action") if isinstance(orchestration, dict) else None,
             elapsed_ms,
         )
         return result
@@ -146,6 +147,7 @@ async def get_orchestration_stats(
         "assistant_messages": 0,
         "with_orchestration": 0,
         "by_engine": {"v2": 0, "v1": 0, "emergency_gate": 0, "unknown": 0},
+        "by_quality_action": {"accept": 0, "revise": 0, "refuse": 0, "unknown": 0},
         "fallback_count": 0,
         "emergency_hit_count": 0,
     }
@@ -185,6 +187,11 @@ async def get_orchestration_stats(
             if orchestration.get("emergency_hit"):
                 counters["emergency_hit_count"] += 1
 
+            quality_action = orchestration.get("quality_action") or "unknown"
+            if quality_action not in counters["by_quality_action"]:
+                quality_action = "unknown"
+            counters["by_quality_action"][quality_action] += 1
+
     denom = max(counters["with_orchestration"], 1)
     rates = {
         "fallback_rate": round(counters["fallback_count"] / denom, 4),
@@ -192,6 +199,9 @@ async def get_orchestration_stats(
         "v2_rate": round(counters["by_engine"]["v2"] / denom, 4),
         "v1_rate": round(counters["by_engine"]["v1"] / denom, 4),
         "emergency_gate_rate": round(counters["by_engine"]["emergency_gate"] / denom, 4),
+        "quality_accept_rate": round(counters["by_quality_action"]["accept"] / denom, 4),
+        "quality_revise_rate": round(counters["by_quality_action"]["revise"] / denom, 4),
+        "quality_refuse_rate": round(counters["by_quality_action"]["refuse"] / denom, 4),
     }
 
     return {

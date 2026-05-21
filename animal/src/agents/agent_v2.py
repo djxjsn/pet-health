@@ -145,6 +145,7 @@ class AgentV2:
         self.db = db
         self.tool_registry = get_tool_registry()
         self._tools_cache: Optional[Dict[str, Any]] = None
+        self._last_trace: Dict[str, Any] = {}
 
     def _get_relevant_tools(self, intents: List[IntentCategory]) -> List[str]:
         """根据意图获取相关工具名称"""
@@ -439,7 +440,7 @@ class AgentV2:
 
         try:
             response = chain.invoke({"system_message": system_message})
-            return response
+            return self._apply_safety_postcheck(response, context)
         except Exception as e:
             return f"抱歉，处理您的请求时出现错误。建议稍后重试或换个方式描述您的问题。错误详情: {str(e)[:100]}"
 
@@ -458,6 +459,7 @@ class AgentV2:
             user_input=user_input,
             start_time=time.time(),
         )
+        self._last_trace = {}
 
         if context:
             ctx.pet_info = context.get("pet_info")
@@ -472,13 +474,16 @@ class AgentV2:
 
             # 闲聊直接回复，不走工具流程
             if ctx.intent_result.primary_intent == IntentCategory.CASUAL_CHAT:
-                return self._casual_response(user_input, ctx)
+                response = self._casual_response(user_input, ctx)
+                self._last_trace = self._build_execution_trace(ctx)
+                return response
 
             # Step 2: 工具规划
             plan = self.plan_v2(user_input, ctx)
             ctx.plan = plan.actions
 
             if plan.fallback_response:
+                self._last_trace = self._build_execution_trace(ctx)
                 return plan.fallback_response
 
             # Step 3: 执行工具
@@ -512,11 +517,13 @@ class AgentV2:
                 f" | 工具调用={len(ctx.results)}"
                 f" | 反思轮次={ctx.reflection_count}"
             )
+            self._last_trace = self._build_execution_trace(ctx)
 
             return response
 
         except Exception as e:
             logger.error(f"Agent V2 执行异常: {e}", exc_info=True)
+            self._last_trace = self._build_execution_trace(ctx)
             return (
                 "抱歉，处理您的请求时遇到了问题。\n\n"
                 "建议您：\n"
@@ -524,6 +531,60 @@ class AgentV2:
                 "2. 提供更多关于宠物症状的细节\n"
                 "3. 如果是紧急情况，请立即联系兽医"
             )
+
+    def _build_execution_trace(self, context: AgentContext) -> Dict[str, Any]:
+        """生成本轮执行追踪信息，供上层编排统计使用"""
+        quality_actions = sorted(self._collect_quality_actions(context.results))
+        primary_quality_action = quality_actions[0] if quality_actions else None
+        return {
+            "intent": context.intent_result.primary_intent.value if context.intent_result else IntentCategory.UNKNOWN.value,
+            "reflection_rounds": context.reflection_count,
+            "tool_count": len(context.results),
+            "quality_action": primary_quality_action,
+            "quality_actions": quality_actions,
+        }
+
+    def get_last_trace(self) -> Dict[str, Any]:
+        """获取最近一次 run_v2 的执行追踪"""
+        return dict(self._last_trace or {})
+
+    def _collect_quality_actions(self, payload: Any) -> set[str]:
+        """递归提取工具结果中的 quality_action 标记"""
+        actions: set[str] = set()
+
+        def _walk(node: Any) -> None:
+            if isinstance(node, dict):
+                qa = node.get("quality_action")
+                if isinstance(qa, str) and qa.strip():
+                    actions.add(qa.strip())
+                for value in node.values():
+                    _walk(value)
+            elif isinstance(node, list):
+                for item in node:
+                    _walk(item)
+
+        _walk(payload)
+        return actions
+
+    def _apply_safety_postcheck(self, response: str, context: AgentContext) -> str:
+        """P2: 高风险场景后置安全校验，必要时强制转诊"""
+        intent = context.intent_result.primary_intent if context.intent_result else IntentCategory.UNKNOWN
+        high_risk = intent in {IntentCategory.EMERGENCY_ASSESS, IntentCategory.SYMPTOM_CHECK}
+
+        if not high_risk:
+            return response
+
+        text = response or ""
+        must_have_markers = ("立即", "就医", "兽医", "急诊", "重要提醒")
+        has_marker = any(marker in text for marker in must_have_markers)
+        if has_marker:
+            return text
+
+        safety_suffix = (
+            "\n\n⚠️ 重要提醒：当前问题存在健康风险，建议尽快联系专业兽医进行面诊；"
+            "若出现呼吸困难、抽搐、昏迷或持续恶化，请立即前往宠物医院急诊。"
+        )
+        return text + safety_suffix
 
     def _casual_response(self, user_input: str, ctx: AgentContext) -> str:
         """处理闲聊，不需要工具调用"""

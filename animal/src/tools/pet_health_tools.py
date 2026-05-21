@@ -192,9 +192,37 @@ class HealthKnowledgeTool(BaseTool):
     args_schema: Type[BaseModel] = HealthKnowledgeInput
     
     def _run(self, query: str, n_results: int = 3) -> List[Dict[str, Any]]:
-        """执行健康知识检索（通过统一检索入口）"""
+        """执行健康知识检索（默认启用质量门禁）"""
         retriever = get_knowledge_retriever()
-        return retriever.search(query=query, top_k=n_results)
+        quality_result = retriever.search_with_quality(
+            query=query,
+            top_k=n_results,
+            enable_self_rag=True,
+            enable_crag=True,
+        )
+
+        results = quality_result.get("results", [])
+        action = quality_result.get("action", "accept")
+        confidence = quality_result.get("confidence", 0.0)
+
+        if action == "refuse":
+            return [{
+                "content": "当前知识库证据不足，建议尽快咨询专业兽医进行面诊。",
+                "metadata": {
+                    "type": "quality_gate_refuse",
+                    "action": action,
+                    "confidence": confidence,
+                },
+                "distance": 1.0,
+            }]
+
+        for item in results:
+            metadata = item.get("metadata", {}) if isinstance(item, dict) else {}
+            if isinstance(metadata, dict):
+                metadata["quality_action"] = action
+                metadata["quality_confidence"] = confidence
+                item["metadata"] = metadata
+        return results
 
 
 class SymptomAnalysisInput(BaseModel):
@@ -217,14 +245,24 @@ class SymptomAnalysisTool(BaseTool):
         pet_species: str,
         pet_age: Optional[int] = None
     ) -> Dict[str, Any]:
-        """执行症状分析（通过统一检索入口）"""
+        """执行症状分析（P2: 接入质量门禁）"""
         retriever = get_knowledge_retriever()
-        search_results = retriever.search_for_symptom_analysis(
-            symptoms=symptoms,
-            pet_species=pet_species,
-            pet_age=pet_age
+        symptom_text = ", ".join(symptoms)
+        query_text = f"{pet_species} 症状: {symptom_text}"
+        if pet_age:
+            query_text += f" 年龄: {pet_age}个月"
+
+        quality_result = retriever.search_with_quality(
+            query=query_text,
+            top_k=5,
+            category="disease",
+            enable_self_rag=True,
+            enable_crag=True,
         )
-        
+        search_results = quality_result.get("results", [])
+        action = quality_result.get("action", "accept")
+        confidence = quality_result.get("confidence", 0.0)
+
         possible_conditions = []
         for result in search_results:
             condition = {
@@ -232,13 +270,19 @@ class SymptomAnalysisTool(BaseTool):
                 'relevance': 1 - result['distance'] if result.get('distance') is not None else 0.5
             }
             possible_conditions.append(condition)
-        
+
+        recommendation = "建议咨询专业兽医进行详细检查"
+        if action == "refuse":
+            recommendation = "当前证据不足，建议尽快前往宠物医院进行面诊检查"
+
         return {
             "symptoms": symptoms,
             "pet_species": pet_species,
             "pet_age": pet_age,
             "possible_conditions": possible_conditions,
-            "recommendation": "建议咨询专业兽医进行详细检查"
+            "recommendation": recommendation,
+            "quality_action": action,
+            "quality_confidence": confidence,
         }
 
 
@@ -262,7 +306,7 @@ class NutritionAdviceTool(BaseTool):
         pet_id: str,
         health_condition: Optional[str] = None
     ) -> Dict[str, Any]:
-        """执行获取营养建议（通过统一检索入口）"""
+        """执行获取营养建议（P2: 接入质量门禁）"""
         pet = get_pet_by_id(self.db, pet_id)
         if not pet:
             return {"error": f"未找到ID为{pet_id}的宠物"}
@@ -274,15 +318,29 @@ class NutritionAdviceTool(BaseTool):
             age_months = age_days // 30
         
         retriever = get_knowledge_retriever()
-        search_results = retriever.search_for_nutrition_advice(
-            species=pet.species,
-            breed=pet.breed,
-            age_months=age_months,
-            health_condition=health_condition,
-            weight=float(pet.weight) if pet.weight else None
+        query_parts = [f"{pet.species} {pet.breed or ''} 营养建议"]
+        if age_months is not None:
+            query_parts.append(f"年龄: {age_months}个月")
+        if health_condition:
+            query_parts.append(f"健康状况: {health_condition}")
+        if pet.weight:
+            query_parts.append(f"体重: {float(pet.weight)}kg")
+        query_text = " ".join(query_parts)
+
+        quality_result = retriever.search_with_quality(
+            query=query_text,
+            top_k=3,
+            category="nutrition",
+            enable_self_rag=True,
+            enable_crag=True,
         )
-        
+        search_results = quality_result.get("results", [])
+        action = quality_result.get("action", "accept")
+        confidence = quality_result.get("confidence", 0.0)
+
         recommendations = [result.get('content', '') for result in search_results]
+        if action == "refuse" and not recommendations:
+            recommendations = ["当前知识库证据不足，建议由兽医根据体况提供个性化营养方案"]
         
         # 获取过敏源信息，附加到建议中
         allergies = get_allergies_by_pet(self.db, pet_id, active_only=True)
@@ -298,5 +356,7 @@ class NutritionAdviceTool(BaseTool):
             "breed": pet.breed,
             "nutrition_recommendations": recommendations,
             "allergy_warnings": allergy_warnings,
+            "quality_action": action,
+            "quality_confidence": confidence,
             "disclaimer": "以上建议仅供参考,具体饮食方案请咨询专业兽医"
         }

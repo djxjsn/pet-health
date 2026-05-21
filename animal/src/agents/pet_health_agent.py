@@ -240,15 +240,23 @@ class PetHealthAgent(BaseAgent):
                 "engine": "emergency_gate",
                 "fallback": False,
                 "emergency_hit": emergency_hit,
+                "quality_action": None,
+                "quality_actions": [],
             }
         else:
             # 默认走 V2 编排，若异常自动降级到 V1，保证线上稳定性
             try:
                 response = self.agent_v2.run_v2(user_input, context)
+                v2_trace = self.agent_v2.get_last_trace()
                 orchestration = {
                     "engine": "v2",
                     "fallback": False,
                     "emergency_hit": None,
+                    "quality_action": v2_trace.get("quality_action"),
+                    "quality_actions": v2_trace.get("quality_actions", []),
+                    "intent": v2_trace.get("intent"),
+                    "tool_count": v2_trace.get("tool_count"),
+                    "reflection_rounds": v2_trace.get("reflection_rounds"),
                 }
             except Exception as e:
                 logger.error(f"Agent V2 执行失败，回退到 V1: {e}", exc_info=True)
@@ -257,6 +265,8 @@ class PetHealthAgent(BaseAgent):
                     "engine": "v1",
                     "fallback": True,
                     "emergency_hit": None,
+                    "quality_action": None,
+                    "quality_actions": [],
                 }
         
         self.memory_manager.add_message(

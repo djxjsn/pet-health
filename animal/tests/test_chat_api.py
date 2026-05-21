@@ -218,7 +218,7 @@ class TestChatAPI:
             "conversation_id": conversation_id,
             "role": "assistant",
             "content": "v2 response",
-            "metadata": {"orchestration": {"engine": "v2", "fallback": False, "emergency_hit": None}},
+            "metadata": {"orchestration": {"engine": "v2", "fallback": False, "emergency_hit": None, "quality_action": "accept"}},
             "created_at": datetime.utcnow(),
         })
         messages.insert_one({
@@ -226,7 +226,7 @@ class TestChatAPI:
             "conversation_id": conversation_id,
             "role": "assistant",
             "content": "fallback response",
-            "metadata": {"orchestration": {"engine": "v1", "fallback": True, "emergency_hit": None}},
+            "metadata": {"orchestration": {"engine": "v1", "fallback": True, "emergency_hit": None, "quality_action": "revise"}},
             "created_at": datetime.utcnow(),
         })
         messages.insert_one({
@@ -234,7 +234,7 @@ class TestChatAPI:
             "conversation_id": conversation_id,
             "role": "assistant",
             "content": "emergency response",
-            "metadata": {"orchestration": {"engine": "emergency_gate", "fallback": False, "emergency_hit": "抽搐"}},
+            "metadata": {"orchestration": {"engine": "emergency_gate", "fallback": False, "emergency_hit": "抽搐", "quality_action": "refuse"}},
             "created_at": datetime.utcnow(),
         })
 
@@ -248,6 +248,12 @@ class TestChatAPI:
         assert data["counters"]["by_engine"]["v2"] >= 1
         assert data["counters"]["by_engine"]["v1"] >= 1
         assert data["counters"]["by_engine"]["emergency_gate"] >= 1
+        assert data["counters"]["by_quality_action"]["accept"] >= 1
+        assert data["counters"]["by_quality_action"]["revise"] >= 1
+        assert data["counters"]["by_quality_action"]["refuse"] >= 1
+        assert "quality_accept_rate" in data["rates"]
+        assert "quality_revise_rate" in data["rates"]
+        assert "quality_refuse_rate" in data["rates"]
 
     def test_message_repository_create_increments_message_count(self, client: TestClient, auth_headers: dict):
         """测试MessageRepository.create会正确累加会话message_count"""
